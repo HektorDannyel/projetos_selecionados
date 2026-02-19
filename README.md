@@ -35,3 +35,15 @@ Os dados apresentados neste projeto foram total ou parcialmente anonimizados, si
 As análises e metodologias permanecem fiéis ao procedimento estatístico aplicado no estudo original, sendo este material apresentado exclusivamente para fins educacionais e demonstrativos de portfólio.
 
 Nenhum conjunto de dados confidencial ou protegido por contrato é disponibilizado neste repositório.
+
+## Reprodução
+
+Para acessar o relatório (temporário):
+
+- Clonar ou baixar o conteúdo deste repositório
+- Acessar o arquivo Relatorio.html
+
+## Ferramentas utilizadas
+
+- Todo o manuseio de dados, visualizações (gráficos e tabelas), cálculos e testes foram feitos utilizando o software R.
+- O relatório HTML foi feito utilizando RStudio e Quarto.
