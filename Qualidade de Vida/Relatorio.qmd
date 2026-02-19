@@ -1,0 +1,807 @@
+---
+title: "Qualidade de Vida"
+title-block-banner: "#2F5597"
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-title: "Índice"
+    css: style.css
+    number-sections: false
+    include-after-body: footer.html
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+fig-align: center
+fig-width: 10
+page-layout: full
+---
+
+```{r}
+
+source("qdv_transplante.R")
+options(scipen = 1000)
+
+```
+
+# Introdução
+
+Em um hospital da região Sul do Brasil, entre os anos de 1991 e 2009, `r dim(total_tx)[1]` pacientes realizaram transplante de fígado cadavérico. Anos após a realização do transplante, esses pacientes foram procurados e tiveram sua qualidade de vida avaliada. Este estudo de caso busca analisar o perfil clínico desses pacientes, de acordo com os dados obtidos em prontuário, e comparar sua qualidade de vida com índices nacionais e regionais da época.
+
+# Análise descritiva dos dados
+
+## Transplantados *versus* sobreviventes
+
+```{r}
+
+custom_palette(total_vs_sobrev)
+
+mort <- total_vs_sobrev@data |> 
+  mutate(name = rep(c("t", "v"), times = 19)) |> 
+  pivot_wider(names_from = name, values_from = value) |> 
+  mutate(p = v/t) |> 
+  pull(p) |> 
+  mean() |> 
+  percent(1)
+
+```
+
+De um total de `r dim(total_tx)[1]` transplantados, apenas `r dim(cadav)[1]` (`r percent(dim(cadav)[1]/dim(total_tx)[1], .1)`) ainda se encontravam vivos no momento do estudo. A mortalidade média por ano é de `r mort`.
+
+## Resumo dos dados
+
+```{r}
+
+caracteristicas_numericas |> 
+  mutate(variavel = c(
+    "Idade hoje",
+    "Idade no transplante",
+    "Tempo para seguimento (Anos)",
+    "IMC", "Score MELD",
+    "Tempo de operação - Minutos",
+    "Tempo de isquemia - Horas",
+    "Tempo de internamento UTI - Dias",
+    "Tempo de internamento Total - Dias"
+  ),
+  ir = c(1, 1, 1, 2, 1, 1, 2, 1, 1)) |> 
+  mutate_at(vars(mediana, min, max), ~ifelse(ir == 1, 
+                                             number(., 1),
+                                             number(., .01))) |> 
+  mutate_at(vars(media, dp), ~number(., .01)) |> 
+  select(-ir) |> 
+  rename_all(~c("Variável", "Média", "Desvio Padrão", "Mediana", "Mínimo", "Máximo")) |> 
+  custom_kable()
+
+```
+
+### Tempo
+
+```{r}
+
+custom_palette(plot_tempo)
+
+```
+
+Podemos observar boa simetria nos três gráficos referentes ao tempo, evidenciado também pela baixa diferença da média e da mediana na tabela. Os pacientes estão bem distribuídos com relação às suas idades no transplante.
+
+### IMC
+
+```{r fig.width=7, fig.align='center'}
+
+custom_palette(plot_imc)
+
+```
+
+```{r}
+
+custom_kable(imc_cat |> 
+               mutate(p = percent(p, .01)) |> 
+               select(`Categoria de IMC` = imc_cat, Faixa = faixa, Total = n, `%` = p))
+
+```
+
+Observando tanto o gráfico quanto a tabela, temos que `r percent(imc_cat$P[3], .01)` dos pacientes se encontram no máximo em Sobrepeso, e `r percent(imc_cat$p[2], .01)` estão na faixa ideal de peso. 
+
+### MELD
+
+```{r fig.width=5, fig.align='center'}
+
+custom_palette(plot_meld)
+
+```
+
+A distribuição do MELD mostra que 75% dos transplantados tiveram o Score até 19 pontos. Somente 2 (`r percent(2/dim(cadav)[1], .01)`) pacientes tiveram Score acima de 30. Excluindo os outliers, a distribuição dos valores se mostra simétrica.
+
+### Tempo de Cirurgia
+
+```{r fig.width=5, fig.align='center'}
+
+custom_palette(plot_tempo_cx)
+
+```
+
+É interessante notar que 50% das cirurgias tiveram até `r quant_tempo_cx$valor[3]` minutos de cirurgia, com uma amplitude de `r quant_tempo_cx$valor[3] - quant_tempo_cx$valor[1]` minutos entre a mediana e o valor mínimo. Os demais 50% estão mais dispersos, com uma amplitude de `r quant_tempo_cx$valor[5] - quant_tempo_cx$valor[3]` minutos entre o valor máximo e a mediana.
+
+### Tempo de Isquemia
+
+```{r fig.width=5, fig.align='center'}
+
+custom_palette(plot_isquemia)
+
+```
+
+O tempo de isquemia está bem distribuído, de acordo com os valores obtidos. Não há valores discrepantes relevantes, e pode-se observar pouca simetria.
+
+### Tempo de internamento
+
+```{r}
+
+p1 <- custom_palette(plot_internamento)
+p2 <- custom_palette(plot_internamento + 
+                       labs(subtitle = "Com zoom") +
+                       theme(plot.subtitle = element_text(hjust = .5)) +
+                       coord_cartesian(ylim = c(5, 35)))
+
+p3 <- custom_palette(plot_uti)
+p4 <- custom_palette(plot_uti + 
+                       labs(subtitle = "Com zoom") +
+                       theme(plot.subtitle = element_text(hjust = .5)) +
+                       coord_cartesian(ylim = c(0, 12)))
+
+grid.arrange(p1, p2, p3, p4)
+
+```
+
+No geral, o tempo de internação dos pacientes, tanto de internação geral quanto em UTI, foi baixo. 75% dos transplantados tiveram tempo de internação de até 20 dias, aproximadamente. Na UTI, a mesma proporção de pacientes teve em média 6 dias de internamento. Considerando os *outliers*, há transplantados que atingiram 48 dias de UTI e 84 dias no internamento geral.
+
+## Variáveis categóricas
+
+### Gênero e tipo sanguíneo
+
+```{r}
+
+p1 <- custom_palette(plot_genero)
+p2 <- custom_palette(plot_tipo_sang)
+
+grid.arrange(p1, p2, nrow = 1)
+
+```
+Acima, proporções de gênero e tipo sanguíneo não demonstram nada atípico.
+
+### Child-Pugh
+
+```{r}
+
+custom_palette(plot_child_pugh)
+
+```
+
+A categoria B de Child-Pugh foi a de maior destaque. Ainda assim, `r percent(child_pugh$p[2], .1)` dos pacientes estão na categoria de maior risco.
+
+### Etiologia
+
+::: {.columns}
+
+::: {.column width="49%"}
+
+```{r}
+
+etiologia_total |> 
+  transmute(Etiologia = ifelse(str_count(etiologia) < 5, str_to_upper(etiologia), str_to_sentence(etiologia)),
+            Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable()
+
+```
+
+:::
+
+::: {.column width="1%"}
+:::
+
+::: {.column width="49%"}
+
+```{r}
+
+etiologia_outro |> 
+  transmute(Etiologia = ifelse(str_count(etiologia) < 5, str_to_upper(etiologia), str_to_sentence(etiologia)),
+            Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(bg_col = 2)
+
+```
+
+:::
+
+:::
+
+As tabelas acima mostram as condições que eventualmente levaram à necessidade do transplante. As duas tabelas representam o mesmo dado, mas a da direita condensa as causas com aparição única em "Outro". É importante ressaltar que `r cadav |> filter(str_detect(etiologia, "\\+")) |> pull(etiologia) |> length()` transplantados apresentavam mais de uma condição.
+
+### Comorbidades preexistentes
+
+::: {.columns}
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pre_total |> 
+  transmute(Comorbidades = case_when(
+    
+    comorb_pre == "sc" ~ "Sem comorbidades",
+    str_count(comorb_pre) < 5 ~ str_to_upper(comorb_pre),
+    TRUE ~ str_to_sentence(comorb_pre)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 93)")
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pre_sim |> 
+  transmute(Comorbidades = case_when(
+    
+    str_count(comorb_pre) < 5 ~ str_to_upper(comorb_pre),
+    TRUE ~ str_to_sentence(comorb_pre)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(bg_col = 2, caption = "Pacientes com comorbidades (n = 29)")
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pre_sim_outro |> 
+  arrange(desc(n)) |> 
+  transmute(Comorbidades = case_when(
+    
+    str_count(comorb_pre) < 5 ~ str_to_upper(comorb_pre),
+    TRUE ~ str_to_sentence(comorb_pre)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(bg_col = 3, caption = "Pacientes com comorbidades - resumo (n = 29)")
+
+```
+:::
+
+:::
+
+`r percent(1 - (comorb_pre_total |> filter(comorb_pre == "sc") |> pull(p)), .1)` das pessoas apresentaram comorbidades anteriores ao transplante, com suas frequências listadas acima. Novamente, as três tabelas são equivalentes, porém em diferentes níveis de detalhamento. `r cadav |> filter(str_detect(comorb_pre, ",")) |> pull(comorb_pre) |> length()` pessoas acumulavam mais de uma comorbidade.
+
+### Complicações da Cirrose
+
+::: {.columns}
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_cirrose |> 
+  transmute(`Complicações` = case_when(
+    
+    complicacoes_cirrose == "sc" ~ "Sem complicações",
+    str_count(complicacoes_cirrose) < 5 ~ str_to_upper(complicacoes_cirrose),
+    TRUE ~ str_to_sentence(complicacoes_cirrose)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 93)")
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_cirrose_sim |> 
+  transmute(`Complicações` = case_when(
+    
+    str_count(complicacoes_cirrose) < 5 ~ str_to_upper(complicacoes_cirrose),
+    TRUE ~ str_to_sentence(complicacoes_cirrose)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Pacientes com complicações (n = 58)", bg_col = 2)
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_cirrose_sim_outro |> 
+  transmute(`Complicações` = case_when(
+    
+    str_count(complicacoes_cirrose) < 5 ~ str_to_upper(complicacoes_cirrose),
+    TRUE ~ str_to_sentence(complicacoes_cirrose)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Pacientes com complicações - resumo (n = 58)", 3)
+
+```
+:::
+
+:::
+
+Diferentemente da situação das comorbidades, a maioria (`r percent(1 - (complicacoes_cirrose |> filter(complicacoes_cirrose == "sc") |> pull(p)), .1)`) dos transplantados apresenta complicações oriundas da cirrose, conforme descritas nas tabelas acima. `r cadav |> filter(str_detect(complicacoes_cirrose, ",")) |> pull(complicacoes_cirrose) |> length()` pessoas apresentaram múltiplas complicações.
+
+### Comorbidades subsequentes
+
+::: {.columns}
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pos_total |> 
+  transmute(Comorbidades = case_when(
+    
+    comorb_pos == "sc" ~ "Sem comorbidades",
+    str_count(comorb_pos) < 5 ~ str_to_upper(comorb_pos),
+    TRUE ~ str_to_sentence(comorb_pos)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 93)")
+
+```
+
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pos_sim |> 
+  transmute(Comorbidades = case_when(
+    
+    str_count(comorb_pos) < 5 ~ str_to_upper(comorb_pos),
+    TRUE ~ str_to_sentence(comorb_pos)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Pacientes com comorbidades posteriores (n = 68)", bg_col = 2)
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+comorb_pos_sim_outro |> 
+  arrange(desc(n)) |> 
+  transmute(Comorbidades = case_when(
+    
+    comorb_pos == "asma" ~ "Asma",
+    str_count(comorb_pos) < 5 ~ str_to_upper(comorb_pos),
+    TRUE ~ str_to_sentence(comorb_pos)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Pacientes com comorbidades posteriores - resumo (n = 68)", bg_col = 3)
+
+```
+:::
+
+:::
+
+O total de pessoas com comorbidades saiu de `r cadav |> filter(!comorb_pre == "sc") |> pull(comorb_pre) |> length()` para `r cadav |> filter(!comorb_pos == "sc") |> pull(comorb_pos) |> length()`. Do ponto de vista Estatístico, somente com os dados presentes neste estudo de caso, não é possível chegar à conclusão de que o transplante pode ter favorecido a incidência de comorbidades nos pacientes. 
+
+### Transfusão
+
+```{r}
+
+transfusao_freq |> 
+  transmute(
+    Transfusão = case_when(
+      
+      is.na(transfusao_io) ~ "Sem informação",
+      transfusao_io == "nao" ~ "Não",
+      TRUE ~ "Sim"
+      
+    ),
+    Total = n,
+    `%` = percent(p, .1),
+    `% (sem missing)` = ifelse(is.na(p_sem_na), "---", percent(p_sem_na, .1))
+  ) |> 
+  custom_kable()
+
+```
+
+Desconsiderando as 27 pessoas sem informação, quase todos os pacientes precisaram de transfusão de sangue durante o transplante.
+
+```{r}
+
+transfusao |> 
+  transmute(
+    Tipo = case_when(
+      tipo == "ch" ~ "Concentrado de Hemácias",
+      tipo == "crio" ~ "Crioprecipitado",
+      tipo == "plaq" ~ "Plaquetas",
+      TRUE ~ "Plasma"
+    ),
+    Pacientes = contagem,
+    Média = number(media, .01),
+    DP = number(dp, .01),
+    Mediana = mediana,
+    Mínimo = min,
+    Máximo = max
+  ) |> 
+  custom_kable()
+
+```
+
+```{r}
+
+custom_palette(plot_transfusao)
+
+```
+A tabela e o gráfico acima mostram a distribuição das unidades de transfusão durante o transplante, para aqueles que precisaram. Foram poucos os pacientes que receberam Crioprecipitado, mas quase todos receberam Concentrado de Hemácias.
+
+### Complicações Agudas
+
+::: {.columns}
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_agudas_total |> 
+  transmute(`Complicações Agudas` = case_when(
+    
+    complicacoes_agudas == "nao" ~ "Não",
+    str_count(complicacoes_agudas) < 5 ~ str_to_upper(complicacoes_agudas),
+    TRUE ~ str_to_sentence(complicacoes_agudas)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 93)")
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_agudas_total_sim |> 
+  transmute(`Complicações Agudas` = case_when(
+    
+    str_count(complicacoes_agudas) < 5 ~ str_to_upper(complicacoes_agudas),
+    TRUE ~ str_to_sentence(complicacoes_agudas)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 52)", bg_col = 2)
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_agudas_total_sim_outro |> 
+  arrange(desc(n)) |> 
+  transmute(`Complicações Agudas` = case_when(
+    
+    str_count(complicacoes_agudas) < 5 ~ str_to_upper(complicacoes_agudas),
+    TRUE ~ str_to_sentence(complicacoes_agudas)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 52)", bg_col = 3)
+
+```
+:::
+
+:::
+
+`r percent(1 - (complicacoes_agudas_total |> filter(complicacoes_agudas == "nao") |> pull(p)), .1)` dos transplantados apresentaram Complicações Agudas. A maior parte delas foi Rejeição Aguda `r percent(complicacoes_agudas_total |> filter(complicacoes_agudas == "rejeicao aguda") |> pull(p), .1)`.
+
+### Necessidade de reoperação
+
+```{r}
+
+reop |> 
+  transmute(
+    Reoperação = ifelse(reop == "nao", "Não", "Sim"),
+    Causa = case_when(
+      
+      causa_reop == "nao" ~ "Não",
+      str_length(causa_reop) < 4 ~ str_to_upper(causa_reop),
+      TRUE ~ str_to_sentence(causa_reop)
+      
+    ),
+    Total = paste0(n, " (", percent(p, .01), ")")
+  ) |> 
+  custom_kable()
+
+```
+
+Foram poucos os que necessitaram de reoperação após o transplante. Os motivos estão descritos na tabela acima.
+
+### Complicações tardias
+
+::: {.columns}
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_tardias |> 
+  transmute(`Complicações Tardias` = case_when(
+    
+    complicacoes_tardias == "nao" ~ "Não",
+    str_count(complicacoes_tardias) < 5 ~ str_to_upper(complicacoes_tardias),
+    TRUE ~ str_to_sentence(complicacoes_tardias)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 93)")
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_tardias_sim |> 
+  transmute(`Complicações Tardias` = case_when(
+    
+    str_count(complicacoes_tardias) < 5 ~ str_to_upper(complicacoes_tardias),
+    TRUE ~ str_to_sentence(complicacoes_tardias)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 61)", bg_col = 2)
+
+```
+:::
+
+::: {.column width="3%"}
+:::
+
+::: {.column width="31.3%"}
+```{r}
+
+complicacoes_tardias_sim_outro |> 
+  arrange(desc(n)) |> 
+  transmute(`Complicações Tardias` = case_when(
+    
+    str_count(complicacoes_tardias) < 5 ~ str_to_upper(complicacoes_tardias),
+    TRUE ~ str_to_sentence(complicacoes_tardias)
+    
+  ),
+  Total = paste0(n, " (", percent(p, .1), ")")) |> 
+  custom_kable(caption = "Total pacientes (n = 61)", bg_col = 3)
+
+```
+:::
+
+:::
+
+Somente `r percent(complicacoes_tardias |> filter(complicacoes_tardias == "nao") |> pull(p), .1)` pessoas não apresentaram complicações tardias. As mais frequentes foram `r complicacoes_tardias |> filter(!complicacoes_tardias == "nao") |> top_n(3) |> mutate(tt = paste0(str_to_title(complicacoes_tardias), " (", percent(p, .1), ")")) |> pull(tt) |> paste(collapse = ", ")`.
+
+### Rejeição
+
+```{r}
+
+custom_palette(plot_rejeicao)
+
+```
+
+`r percent(rejeicao$p[3], .1)` dos transplantados não apresentaram nenhum tipo de rejeição. Dos 36 restantes, `r percent(rejeicao$p_sim[1], .1)` tivemam rejeição aguda
+
+### Retransplante
+
+```{r}
+
+re_tx |> 
+  transmute(
+    Retransplante = ifelse(re_tx == "nao", "Não", "Sim"),
+    Causa = case_when(
+      
+      is.na(causa_re_tx) ~ "Não",
+      causa_re_tx == "tah" ~ "TAH",
+      TRUE ~ "Rejeição crônica"
+      
+    ),
+    Total = paste0(n, " (", percent(p, .01), ")")
+  ) |> 
+  custom_kable()
+
+```
+
+Apenas `r re_tx$total_sim[2]` pessoas precisaram refazer o transplante, pelos motivos descritos acima.
+
+# Índices de Qualidade de Vida
+
+O questionário SF-36 foi aplicado aos transplantados, e os valores obtidos foram comparados com índices nacionais e regionais fornecidos por um [a href="https://api.arca.fiocruz.br/api/core/bitstreams/d5e885ab-f928-4291-9bf0-67decbe20a95/content"]estudo da Fiocruz[/a]. 
+
+## Resultados do questionário aplicado aos transplantados
+
+### Resumo
+
+```{r}
+
+sumario_qv |> 
+  mutate(dominio = ifelse(dominio == "dor", "Dor", str_to_upper(dominio))) |> 
+  mutate_if(is.numeric, ~number(., .1)) |> 
+  rename_all(~c("Domínio", "Média", "DP", "Mediana", "Mínimo", "Máximo")) |> 
+  custom_kable()
+
+```
+
+```{r}
+
+custom_palette(plot_qv)
+
+```
+
+Todos os oito domínios apresentaram uma amplitude grande (`r sumario_qv |> summarise(amp = mean(max - min)) |> pull(amp)` em média). O domínio AE (aspectos emocionais) é o que tem a maior amplitude de todas, chegando até mesmo a zero. Os valores CF (capacidade funcional) e AS (aspectos sociais) são os indicadores com melhores resultados, no geral.
+
+#### Teste de médias
+
+```{r}
+
+comparacao_qv |> 
+  mutate(dominio = ifelse(dominio == "dor", "Dor", str_to_upper(dominio))) |> 
+  mutate_at(vars(starts_with("media")), ~number(., .1)) |> 
+  # mutate_at(vars(starts_with("p_valor")), ~number(., .0001)) |> 
+  select(Domínio = dominio, Média = media, `Média BR` = media_br, `p-valor BR` = p_valor_br, `Média Sul` = media_sul, `p-valor Sul` = p_valor_sul) |> 
+  custom_kable(test_col = c("p-valor BR", "p-valor Sul"))
+
+```
+
+$H_0$: Para um domínio específico, a média observada é igual à média de referência (Brasil ou Sul)
+
+$H_1$: Para um domínio específico, a média observada é diferente da média de referência (Brasil ou Sul)
+
+Para cada domínio foram calculados dois testes t-Student de diferença de médias: um com a média brasileira como referência, e outro com a média da região Sul do Brasil. Com um nível de significância $\alpha=0.05$:
+
+- Média BR: Os domínios CF, AF, AE, VT e SM apresentaram diferença estatisticamente significante.
+- Média Sul: Os domínios CF, AF, AS, Dor, VT e SM apresentaram diferença estatisticamente significante.
+
+### Qualidade de vida VS Idade
+
+```{r}
+
+sumario_idade |> 
+  select(-medida, Domínio = dominio) |> 
+  mutate(value = number(value, .1),
+         Domínio = ifelse(Domínio == "dor", "Dor", str_to_upper(Domínio))) |> 
+  pivot_wider(names_from = recorte, values_from = value) |> 
+  custom_kable(header_above = c(" " = 1, "Média" = 2, "DP" = 2, "Mediana" = 2, "Mínimo" = 2, "Máximo" = 2))
+
+```
+
+
+```{r}
+
+custom_palette(plot_qv_idade)
+
+```
+
+Não parece haver uma forma dominante em como a idade afeta a qualidade de vida dos transplantados. Para os domínios AE, SM e VT, a dispersão parece mais ou menos a mesma. Para o domínio CF, a dispersão parece somente mais condensada para idade >= 50. Para AS e Dor, os índices parecem maiores para idade < 50. Por fim, para AF e EGS, os índices parecem maiores para idade >= 50.
+
+#### Teste de médias
+
+```{r}
+
+comparacao_idade |> 
+  mutate(dominio = ifelse(dominio == "dor", "Dor", str_to_upper(dominio))) |> 
+  rename(Domínio = dominio, `p-valor` = p_valor) |> 
+  custom_kable(test_col = "p-valor", header_above = c(" " = 1, "Faixa etária" = 2, "  " = 1))
+
+```
+
+$H_0$: Para um domínio específico, a média é a mesma para ambas faixas etárias
+
+$H_1$: Para um domínio específico, a média das duas faixas etárias é diferente
+
+Para cada domínio foi calculado um teste t-Student de diferença de médias. Nenhum deles mostrou resultados estatisticamente significativos.
+
+### Qualidade de Vida vs Gênero
+
+```{r}
+
+sumario_genero |> 
+  select(-medida, Domínio = dominio) |> 
+  mutate(value = number(value, .1),
+         Domínio = ifelse(Domínio == "dor", "Dor", str_to_upper(Domínio))) |> 
+  pivot_wider(names_from = genero, values_from = value) |> 
+  custom_kable(header_above = c(" " = 1, "Média" = 2, "DP" = 2, "Mediana" = 2, "Mínimo" = 2, "Máximo" = 2))
+
+```
+
+```{r}
+
+custom_palette(plot_qv_genero)
+
+```
+
+Tanto para o gênero feminino quanto masculino, os índices de qualidade de vida parecem os mesmos. Pode-se observar flutuações tímidas entre as médias, mas todas estão parecidas ainda assim.
+
+#### Teste de médias
+
+```{r}
+
+comparacao_genero |> 
+  mutate(dominio = ifelse(dominio == "dor", "Dor", str_to_upper(dominio))) |> 
+  rename(Domínio = dominio, `p-valor` = p_valor) |> 
+  custom_kable(test_col = "p-valor", header_above = c(" " = 1, "Gênero" = 2, "  " = 1))
+
+```
+
+$H_0$: Para um domínio específico, a média é a mesma para ambos os gêneros
+
+$H_1$: Para um domínio específico, a média dos dois gêneros é diferente
+
+Para cada domínio foi calculado um teste t-Student de diferença de médias. Nenhum deles mostrou resultados estatisticamente significativos.
+
+### Qualidade de Vida vs Complicações Tardias
+
+```{r}
+
+sumario_complicacoes_tardias |> 
+  select(-medida, Domínio = dominio) |> 
+  mutate(value = number(value, .1),
+         Domínio = ifelse(Domínio == "dor", "Dor", str_to_upper(Domínio))) |> 
+  pivot_wider(names_from = complicacoes, values_from = value) |> 
+  custom_kable(header_above = c(" " = 1, "Média" = 2, "DP" = 2, "Mediana" = 2, "Mínimo" = 2, "Máximo" = 2))
+
+```
+
+```{r}
+
+custom_palette(plot_qv_complicacoes_tardias)
+
+```
+
+Para os domínios AE e AF, aparenta haver um score maior onde não há complicações. Para AS e SM, parece haver um score maior onde há complicações. Para todos os demais, no geral, os valores são parecidos.
+
+#### Teste de médias
+
+```{r}
+
+comparacao_complicacoes_tardias |> 
+  mutate(dominio = ifelse(dominio == "dor", "Dor", str_to_upper(dominio))) |> 
+  rename(Domínio = dominio, `p-valor` = p_valor) |> 
+  custom_kable(test_col = "p-valor", header_above = c(" " = 1, "Complicações Tardias" = 2, "  " = 1))
+
+```
+
+$H_0$: Para um domínio específico, a média é a mesma independente da presença de complicações
+
+$H_1$: Para um domínio específico, a média é diferente de acordo com a presença de complicações
+
+Para cada domínio foi calculado um teste t-Student de diferença de médias. Nenhum deles mostrou resultados estatisticamente significativos.
